@@ -71,7 +71,7 @@ struct ImTui {
     hot: Option<Id>,
     active: Option<Id>,
     layouts: Vec<Layout>,
-    keys: Vec<i32>,
+    key: Option<i32>,
 }
 
 impl ImTui {
@@ -80,7 +80,7 @@ impl ImTui {
             active: None,
             hot: None,
             layouts: Vec::new(),
-            keys: Vec::new()
+            key: None,
         }
     }
 
@@ -100,10 +100,11 @@ impl ImTui {
 
     fn end(&mut self) {
         self.layouts.pop().unwrap();
+        self.key = None;
     }
 
     fn feed_key(&mut self, key: i32) {
-        self.keys.push(key);
+        self.key = Some(key)
     }
 }
 
@@ -126,9 +127,7 @@ fn button(imtui: &mut ImTui, label: &str, id: Id) -> bool {
     } else if imtui.hot == Some(id)  {
         pair = HOT_PAIR;
         if imtui.active.is_none() {
-            let result = imtui.keys.iter().find(|x| **x == 10).is_some();
-            imtui.keys.clear();
-            if result {
+            if imtui.key == Some(10) {
                 imtui.active = Some(id);
                 pair = ACTIVE_PAIR;
             }
@@ -156,20 +155,17 @@ fn edit_field(imtui: &mut ImTui, buffer: &mut String, _cursor: &mut usize, id: I
     let mut pair = INACTIVE_PAIR;
 
     if imtui.active == Some(id) {
-        for key in imtui.keys.iter() {
-            if *key == 27 || *key == 10 {
-                imtui.active = None;
-            } else if (32..127).contains(key) {
-                buffer.push(*key as u8 as char);
+        if let Some(key) = imtui.key {
+            match key {
+                27 | 10 => imtui.active = None,
+                32..=127 => buffer.push(key as u8 as char),
+                _ => {}
             }
         }
-        imtui.keys.clear();
     } else if imtui.hot == Some(id) {
         pair = HOT_PAIR;
         if imtui.active.is_none() {
-            let result = imtui.keys.iter().find(|x| **x == 10).is_some();
-            imtui.keys.clear();
-            if result {
+            if imtui.key == Some(10) {
                 imtui.active = Some(id);
                 pair = INACTIVE_PAIR;
             }
