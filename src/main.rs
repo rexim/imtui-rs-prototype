@@ -84,8 +84,8 @@ impl ImTui {
         }
     }
 
-    fn begin(&mut self) {
-        self.layouts.push(Layout::new(LayoutType::Vert, Point(0, 0), 0));
+    fn begin(&mut self, pos: Point) {
+        self.layouts.push(Layout::new(LayoutType::Vert, pos, 0));
     }
 
     fn begin_layout(&mut self, typ: LayoutType, pad: i32) {
@@ -244,7 +244,7 @@ fn main() {
     while !quit {
         erase();
 
-        imtui.begin();
+        imtui.begin(Point(0, 0));
         {
             if imtui.active.is_none() {
                 match imtui.key.map(|x| x as u8 as char) {
