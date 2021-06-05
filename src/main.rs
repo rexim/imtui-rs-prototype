@@ -117,6 +117,41 @@ fn label(imtui: &mut ImTui, text: &str) {
     imtui.layouts.last_mut().unwrap().add_size(Point(text.len() as i32, 1));
 }
 
+fn checkbox(imtui: &mut ImTui, text: &str, state: &mut bool, my_id: Id) -> bool {
+    let mut clicked = false;
+    let mut pair = INACTIVE_PAIR;
+    if imtui.active == Some(my_id) {
+        imtui.active = None;
+        clicked = true;
+    } else if imtui.hot == Some(my_id) {
+        pair = HOT_PAIR;
+        if imtui.active.is_none() {
+            if imtui.key == Some(10) {
+                imtui.active = Some(my_id);
+                pair = ACTIVE_PAIR;
+            }
+        }
+    }
+
+    if clicked {
+        *state = !*state;
+    }
+
+    let pos = imtui.layouts.last().unwrap().free_pos();
+
+    attron(COLOR_PAIR(pair));
+    mv(pos.1, pos.0);
+
+    let s = format!("[{}] {}", if *state {"X"} else {" "}, text);
+    addstr(&s);
+
+    imtui.layouts.last_mut().unwrap().add_size(Point(s.len() as i32, 1));
+
+    attroff(COLOR_PAIR(pair));
+
+    return clicked;
+}
+
 fn button(imtui: &mut ImTui, label: &str, id: Id) -> bool {
     let mut clicked = false;
     let mut pair = INACTIVE_PAIR;
@@ -238,6 +273,8 @@ fn main() {
     let submit_id = gen_id.next();
     let clear_id = gen_id.next();
     let quit_id = gen_id.next();
+    let hide_db_id = gen_id.next();
+    let mut hide_db_state = false;
 
     let mut database = Vec::<(String, String)>::new();
 
@@ -263,9 +300,15 @@ fn main() {
                 }
             }
 
-            for (first, last) in database.iter() {
-                label(&mut imtui, &format!("{} | {}", first, last));
+            checkbox(&mut imtui, "Hide Database", &mut hide_db_state, hide_db_id);
+
+            if !hide_db_state {
+                label(&mut imtui, "------------------------------");
+                for (first, last) in database.iter() {
+                    label(&mut imtui, &format!("{} | {}", first, last));
+                }
             }
+
             label(&mut imtui, "------------------------------");
 
             imtui.begin_layout(LayoutType::Horz, 1);
@@ -281,6 +324,8 @@ fn main() {
                 edit_field(&mut imtui, &mut last_name, &mut last_name_cursor, last_name_id);
             }
             imtui.end_layout();
+
+            label(&mut imtui, "------------------------------");
 
             imtui.begin_layout(LayoutType::Horz, 1);
             {
@@ -300,6 +345,7 @@ fn main() {
                 }
             }
             imtui.end_layout();
+
         }
         imtui.end();
 
