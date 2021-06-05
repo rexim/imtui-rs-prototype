@@ -246,6 +246,23 @@ fn main() {
 
         imtui.begin();
         {
+            if imtui.active.is_none() {
+                match imtui.key.map(|x| x as u8 as char) {
+                    Some('s') => {
+                        imtui.hot = imtui.hot.map(|Id(x)| Id((x + 1) % gen_id.count));
+                    }
+                    Some('w') => {
+                        imtui.hot = imtui
+                            .hot
+                            .map(|Id(x)| if x == 0 { Id(gen_id.count - 1) } else { Id(x - 1) });
+                    }
+                    Some('q') => {
+                        quit = true
+                    },
+                    _ => {}
+                }
+            }
+
             for (first, last) in database.iter() {
                 label(&mut imtui, &format!("{} | {}", first, last));
             }
@@ -288,23 +305,7 @@ fn main() {
 
         refresh();
 
-        let key = getch();
-        match key as u8 as char {
-            's' => if imtui.active.is_none() {
-                imtui.hot = imtui.hot.map(|Id(x)| Id((x + 1) % gen_id.count));
-            }
-            'w' => if imtui.active.is_none() {
-                imtui.hot = imtui
-                    .hot
-                    .map(|Id(x)| if x == 0 { Id(gen_id.count - 1) } else { Id(x - 1) });
-            }
-            'q' => if imtui.active.is_none() {
-                quit = true
-            },
-            _ => if key >= 0 {
-                imtui.feed_key(key);
-            }
-        }
+        imtui.feed_key(getch());
     }
 
     endwin();
