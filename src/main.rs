@@ -65,7 +65,7 @@ impl Layout {
 }
 
 #[derive(PartialEq, Eq, Copy, Clone)]
-struct Id(usize);
+struct Id(i32);
 
 struct ImTui {
     hot: Option<Id>,
@@ -232,7 +232,7 @@ const HOT_PAIR: i16 = 2;
 const ACTIVE_PAIR: i16 = 3;
 
 struct GenId {
-    count: usize
+    count: i32
 }
 
 impl GenId {
@@ -286,12 +286,14 @@ fn main() {
             if imtui.active.is_none() {
                 match imtui.key.map(|x| x as u8 as char) {
                     Some('s') => {
-                        imtui.hot = imtui.hot.map(|Id(x)| Id((x + 1) % gen_id.count));
+                        if let Some(Id(id)) = imtui.hot {
+                            imtui.hot = Some(Id((id + 1).rem_euclid(gen_id.count)));
+                        }
                     }
                     Some('w') => {
-                        imtui.hot = imtui
-                            .hot
-                            .map(|Id(x)| if x == 0 { Id(gen_id.count - 1) } else { Id(x - 1) });
+                        if let Some(Id(id)) = imtui.hot {
+                            imtui.hot = Some(Id((id - 1).rem_euclid(gen_id.count)));
+                        }
                     }
                     Some('q') => {
                         quit = true
