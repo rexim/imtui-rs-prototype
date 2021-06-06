@@ -64,28 +64,46 @@ impl Layout {
     }
 }
 
-#[derive(PartialEq, Eq, Copy, Clone)]
+#[derive(PartialEq, Eq, Copy, Clone, Debug)]
 struct Id(i32);
 
+#[derive(Default)]
 struct ImTui {
     hot: Option<Id>,
     active: Option<Id>,
     layouts: Vec<Layout>,
     key: Option<i32>,
+    ids: Vec<Id>,
 }
 
 impl ImTui {
-    fn new() -> Self {
-        Self {
-            active: None,
-            hot: None,
-            layouts: Vec::new(),
-            key: None,
+    fn map_hot_index<F: Fn(i32) -> i32>(&self, f: F) -> Option<Id> {
+        if let Some(hot_id) = self.hot {
+            if let Some(index) = self.ids.iter().position(|id| *id == hot_id) {
+                let next_index = f(index as i32).rem_euclid(self.ids.len() as i32) as usize;
+                return Some(self.ids[next_index]);
+            }
         }
+        None
     }
 
     fn begin(&mut self, pos: Point) {
+        if self.active.is_none() {
+            if let Some(key) = self.key {
+                match key as u8 as char {
+                    's' => self.hot = self.map_hot_index(|index| index + 1),
+                    'w' => self.hot = self.map_hot_index(|index| index - 1),
+                    _ => {},
+                }
+            }
+        }
+
+        if self.hot.is_none() {
+            self.hot = self.ids.get(0).cloned();
+        }
+
         self.layouts.push(Layout::new(LayoutType::Vert, pos, 0));
+        self.ids.clear();
     }
 
     fn begin_layout(&mut self, typ: LayoutType, pad: i32) {
@@ -117,6 +135,7 @@ fn label(imtui: &mut ImTui, text: &str) {
     imtui.layouts.last_mut().unwrap().add_size(Point(text.len() as i32, 1));
 }
 
+#[allow(dead_code)]
 fn checkbox(imtui: &mut ImTui, text: &str, state: &mut bool, my_id: Id) -> bool {
     let mut clicked = false;
     let mut pair = INACTIVE_PAIR;
@@ -137,6 +156,7 @@ fn checkbox(imtui: &mut ImTui, text: &str, state: &mut bool, my_id: Id) -> bool 
         *state = !*state;
     }
 
+    imtui.ids.push(my_id);
     let pos = imtui.layouts.last().unwrap().free_pos();
 
     attron(COLOR_PAIR(pair));
@@ -169,6 +189,7 @@ fn button(imtui: &mut ImTui, label: &str, id: Id) -> bool {
         }
     }
 
+    imtui.ids.push(id);
     let pos = imtui.layouts.last().unwrap().free_pos();
 
     attron(COLOR_PAIR(pair));
@@ -207,6 +228,7 @@ fn edit_field(imtui: &mut ImTui, buffer: &mut String, _cursor: &mut usize, id: I
         }
     }
 
+    imtui.ids.push(id);
     let pos = imtui.layouts.last().unwrap().free_pos();
 
     attron(COLOR_PAIR(pair));
@@ -257,13 +279,12 @@ fn main() {
     init_pair(HOT_PAIR, COLOR_BLACK, COLOR_WHITE);
     init_pair(ACTIVE_PAIR, COLOR_BLACK, COLOR_RED);
 
-    let mut imtui = ImTui::new();
+    let mut imtui = ImTui::default();
     let mut quit = false;
-
-    imtui.hot = Some(Id(0));
-
     let mut gen_id = GenId::new();
 
+    let hide_buttons_id = gen_id.next();
+    let mut hide_buttons = false;
     let mut first_name = String::new();
     let mut first_name_cursor: usize = 0;
     let first_name_id = gen_id.next();
@@ -285,16 +306,6 @@ fn main() {
         {
             if imtui.active.is_none() {
                 match imtui.key.map(|x| x as u8 as char) {
-                    Some('s') => {
-                        if let Some(Id(id)) = imtui.hot {
-                            imtui.hot = Some(Id((id + 1).rem_euclid(gen_id.count)));
-                        }
-                    }
-                    Some('w') => {
-                        if let Some(Id(id)) = imtui.hot {
-                            imtui.hot = Some(Id((id - 1).rem_euclid(gen_id.count)));
-                        }
-                    }
                     Some('q') => {
                         quit = true
                     },
@@ -302,7 +313,15 @@ fn main() {
                 }
             }
 
-            checkbox(&mut imtui, "Hide Database", &mut hide_db_state, hide_db_id);
+            if hide_db_state {
+                if button(&mut imtui, "+", hide_db_id) {
+                    hide_db_state = false;
+                }
+            } else {
+                if button(&mut imtui, "-", hide_db_id) {
+                    hide_db_state = true;
+                }
+            }
 
             if !hide_db_state {
                 label(&mut imtui, "------------------------------");
@@ -329,25 +348,35 @@ fn main() {
 
             label(&mut imtui, "------------------------------");
 
-            imtui.begin_layout(LayoutType::Horz, 1);
-            {
-                if button(&mut imtui, "Submit", submit_id) {
-                    database.push((first_name.clone(), last_name.clone()));
-                    first_name.clear();
-                    last_name.clear();
+            if hide_buttons {
+                if button(&mut imtui, "+", hide_buttons_id) {
+                    hide_buttons = false;
                 }
-
-                if button(&mut imtui, "Clear", clear_id) {
-                    first_name.clear();
-                    last_name.clear();
-                }
-
-                if button(&mut imtui, "Quit", quit_id) {
-                    quit = true;
+            } else {
+                if button(&mut imtui, "-", hide_buttons_id) {
+                    hide_buttons = true;
                 }
             }
-            imtui.end_layout();
 
+            if !hide_buttons {
+                imtui.begin_layout(LayoutType::Horz, 1);
+                {
+                    if button(&mut imtui, "Submit", submit_id) {
+                        database.push((first_name.clone(), last_name.clone()));
+                        first_name.clear();
+                        last_name.clear();
+                    }
+
+                    if button(&mut imtui, "Clear", clear_id) {
+                        database.clear();
+                    }
+
+                    if button(&mut imtui, "Quit", quit_id) {
+                        quit = true;
+                    }
+                }
+                imtui.end_layout();
+            }
         }
         imtui.end();
 
