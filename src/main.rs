@@ -69,37 +69,30 @@ struct Id(i32);
 
 #[derive(Default)]
 struct ImTui {
-    hot: Option<Id>,
     active: Option<Id>,
+    hot: Option<Id>,
     layouts: Vec<Layout>,
     key: Option<i32>,
     ids: Vec<Id>,
+    focus: i32,
 }
 
 impl ImTui {
-    fn map_hot_index<F: Fn(i32) -> i32>(&self, f: F) -> Option<Id> {
-        if let Some(hot_id) = self.hot {
-            if let Some(index) = self.ids.iter().position(|id| *id == hot_id) {
-                let next_index = f(index as i32).rem_euclid(self.ids.len() as i32) as usize;
-                return Some(self.ids[next_index]);
-            }
-        }
-        None
-    }
-
     fn begin(&mut self, pos: Point) {
         if self.active.is_none() {
             if let Some(key) = self.key {
                 match key as u8 as char {
-                    's' => self.hot = self.map_hot_index(|index| index + 1),
-                    'w' => self.hot = self.map_hot_index(|index| index - 1),
+                    's' => self.focus = (self.focus + 1).rem_euclid(self.ids.len() as i32),
+                    'w' => self.focus = (self.focus - 1).rem_euclid(self.ids.len() as i32),
                     _ => {},
                 }
             }
         }
 
-        if self.hot.is_none() {
-            self.hot = self.ids.get(0).cloned();
+        if self.ids.len() > 0 {
+            self.hot = self.ids.get(self.focus.clamp(0, self.ids.len() as i32 - 1) as usize).cloned()
+        } else {
+            self.hot = None
         }
 
         self.layouts.push(Layout::new(LayoutType::Vert, pos, 0));
@@ -377,6 +370,18 @@ fn main() {
                 }
                 imtui.end_layout();
             }
+
+            label(&mut imtui, "");
+            label(&mut imtui, "");
+            label(&mut imtui, "");
+            label(&mut imtui, "");
+            label(&mut imtui, "Debug: ");
+            let ids_label   = format!("  Rendered IDs: {:?}", imtui.ids);
+            label(&mut imtui, &ids_label);
+            let focus_label = format!("  Focus:        {}", imtui.focus);
+            label(&mut imtui, &focus_label);
+            let hot_label   = format!("  Hot:          {:?}", imtui.hot);
+            label(&mut imtui, &hot_label);
         }
         imtui.end();
 
